@@ -1,35 +1,43 @@
 #include <avr/io.h>
 #include <avr/wdt.h>
 #include <avr/interrupt.h>
+#include <util/delay.h>
 
+#include <avr/pgmspace.h>
 #include "usbdrv.h"
 
 #define DEBUG 1
 #include "debug.h"
 
-void delay(uint16_t ms) {
-    uint16_t delay_count = F_CPU / 17500;
-    volatile uint16_t i;
-    while (ms != 0) {
-	for (i=0; i != delay_count; i++);
-	ms--;
-    }
+usbMsgLen_t usbFunctionSetup(uchar data[8])
+{
+    return 0;   /* default for not implemented requests: return no data back to host */
 }
 
 int main() {
+
+    wdt_enable(WDTO_1S);
+
     DEBUG_INIT();
+    DEBUG_STR("hello!\n");
+
+    usbInit();
+    usbDeviceDisconnect();
+    _delay_ms(500);
+    usbDeviceConnect();
+    sei();
 
     DDRB |= (1 << DDB1);
     while (1) {
-	DEBUG_STR("hello");
+	wdt_reset();
+	DEBUG_STR("hi");
         PORTB |= (1 << PORTB1);
-        delay(100);
+        usbPoll();
+	_delay_ms(500);
         PORTB &= ~(1 << PORTB1);
-        delay(100);
-        PORTB |= (1 << PORTB1);
-        delay(100);
-        PORTB &= ~(1 << PORTB1);
-	DEBUG_STR(" world\n");
-        delay(1000);
+        /*if (usbInterruptIsReady()) {
+	    DEBUG_STR("i");
+	    usbSetInterrupt((void *)&reportBuffer, sizeof(reportBuffer));	
+	}*/
     }
 }

@@ -14,7 +14,7 @@ usbdrvasm.o: ${USB_DRV}/usbdrvasm.S
 	${CC} ${CFLAGS} -x assembler-with-cpp -c $< -o $@
 
 main.elf: main.o ${USB_LIBS}
-	avr-gcc ${CFLAGS} -o $@ $<
+	avr-gcc ${CFLAGS} -o $@ $^
 
 %.hex: %.elf
 	avr-objcopy -j .text -j .data -O ihex $< $@
