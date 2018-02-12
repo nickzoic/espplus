@@ -2,3 +2,12 @@
 
 <p>This is a test, a placeholder for when I get devices pointing to a website.</p>
 
+<script type="text/javascript">
+navigator.usb.requestDevice({ filters: [{ vendorId: 0x1209 }] })
+    .then(device => {
+        console.log(device.productName);
+        console.log(device.manufacturerName);
+    })
+    .catch(error => { console.log(error); });
+</script>
+
