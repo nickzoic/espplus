@@ -26,7 +26,7 @@ ${BUILD}/main.o: main.c debug.h
 	avr-objdump -h -S $< > $@
 
 deploy: ${BUILD}/main.hex
-	sudo micronucleus $<
+	micronucleus $<
 
 clean:
 	rm -r ${BUILD}
