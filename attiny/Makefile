@@ -1,7 +1,7 @@
 CC=avr-gcc
 MCU_TARGET=attiny167
 F_CPU=16000000
-USB_DRV=../v-usb/usbdrv/
+USB_DRV=v-usb/usbdrv
 CFLAGS=-g -Os -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -Wall -DF_CPU=${F_CPU} -mmcu=${MCU_TARGET} -I. -I${USB_DRV} -std=gnu99
 USB_LIBS=usbdrv.o usbdrvasm.o
 

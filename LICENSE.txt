@@ -1,7 +1,0 @@
-Right now, the 'test' code uses V-USB, which is GPLv2, so that version of the code will
-have to be under GPLv2 as well I suppose.
-
-However, the project may end up changing over to LUFA, which is MIT licensed, in which
-case the whole thing will be released under MIT license.
-
-In the meantime, you should regard this code as 'not yet released'.
