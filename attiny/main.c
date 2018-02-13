@@ -2,7 +2,7 @@
 #include <avr/wdt.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
-
+#include <string.h>
 #include <avr/pgmspace.h>
 #include "usbdrv.h"
 
@@ -114,6 +114,7 @@ const uchar MS_OS_20_DESCRIPTOR_SET[MS_OS_20_DESCRIPTOR_LENGTH] PROGMEM = {
 
 usbMsgLen_t usbFunctionDescriptor(usbRequest_t *rq)
 {
+    DEBUG_STR("DESCR: ");
     DEBUG_BYTES(rq, sizeof(usbRequest_t));
     switch (rq->wValue.bytes[1]) {
 	case USBDESCR_STRING:
@@ -141,23 +142,37 @@ const uchar webusb_url[] PROGMEM = { 27, 3, 1, 'n', 'i', 'c', 'k', 'z', 'o', 'i'
 usbMsgLen_t usbFunctionSetup(uchar data[8])
 {
     usbRequest_t *rq = (void *)data;
+    DEBUG_STR("SETUP: ");
+    DEBUG_BYTES(rq, sizeof(usbRequest_t));
     switch (rq->bRequest) {
 	case WL_REQUEST_WEBUSB: 
 	    switch (rq->wIndex.word) {
 	        case WEBUSB_REQUEST_GET_ALLOWED_ORIGINS:
 		case WEBUSB_REQUEST_GET_URL:
+		    DEBUG_STR("sent url\n");
 	            usbMsgPtr = webusb_url;
 	            return sizeof(webusb_url);
 	    }
 	case WL_REQUEST_WINUSB:
 	    switch (rq->wIndex.word) {
 		case WINUSB_REQUEST_DESCRIPTOR:
+		    DEBUG_STR("sent ms_os_20\n");
 		    usbMsgPtr = MS_OS_20_DESCRIPTOR_SET;
 		    return sizeof(MS_OS_20_DESCRIPTOR_SET);
 	    }
     }
-		
-    return 0;   /* default for not implemented requests: return no data back to host */
+    DEBUG_STR("wot?\n");		
+    return USB_NO_MSG;
+	    /* default for not implemented requests: return no data back to host */
+}
+
+uchar usbFunctionRead(uchar *data, uchar len)
+{
+    DEBUG_STR("READ!");
+    DEBUG_BYTES(&len, 1);
+    memset(data, 'A'+len, len);
+    DEBUG_BYTES(data, len);
+    return len;
 }
 
 int main() {
