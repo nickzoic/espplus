@@ -29,18 +29,18 @@ const char usbDescriptorDevice[] PROGMEM = {  // USB device descriptor
 };
 
 const int usbDescriptorStringManufacturer[] PROGMEM = {
-    USB_STRING_DESCRIPTOR_HEADER(10),
-    'H', 'a', 'l', 'l', 'o', 'W', 'e', 'r', 'l', 'd'
+    USB_STRING_DESCRIPTOR_HEADER(8),
+    'z', 'o', 'i', 'c', '.', 'o', 'r', 'g'
 };
 
 const int usbDescriptorStringProduct[] PROGMEM = {
-    USB_STRING_DESCRIPTOR_HEADER(10),
-    'H', 'i', 'l', 'l', 'o', 'W', 'u', 'r', 'l', 'd'
+    USB_STRING_DESCRIPTOR_HEADER(7),
+    'e', 's', 'p', 'p', 'l', 'u', 's'
 };
 
 const int usbDescriptorStringSerialNumber[] PROGMEM = {
-    USB_STRING_DESCRIPTOR_HEADER(10),
-    'H', 'e', 'l', 'l', 'o', 'W', 'o', 'r', 'l', 'd'
+    USB_STRING_DESCRIPTOR_HEADER(4),
+    '0', '0', '0', '1'
 };
 
 /// START CARGO CULT FROM sowbug/weblight
@@ -136,7 +136,7 @@ usbMsgLen_t usbFunctionDescriptor(usbRequest_t *rq)
     return 0;
 }
 
-const uchar webusb_url[] PROGMEM = { 19, 3, 0, 'e', 's', 'p', 'p', 'l', 'u', 's', '.', 'z', 'o', 'i', 'c', '.', 'o', 'r', 'g' };
+const uchar webusb_url[] PROGMEM = { 27, 3, 1, 'n', 'i', 'c', 'k', 'z', 'o', 'i', 'c', '.', 'g', 'i', 't', 'h', 'u', 'b', '.', 'i', 'o', '/', 'e', 's', 'p', 'p', 'l', 'u', 's', '/' };
 
 usbMsgLen_t usbFunctionSetup(uchar data[8])
 {
