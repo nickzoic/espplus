@@ -1,0 +1,28 @@
+<h1>Test</h1>
+
+<p>This is a test, a placeholder for when I get devices pointing to a website.</p>
+
+<button id="wot">Connect</button>
+
+<script type="text/javascript">
+async function connectDevice(device) {
+    await device.open();
+    while (true) {
+	let result = await device.transferIn(0, 1);
+        console.log(Int8Array(result.data.buffer));
+    }
+}
+
+
+wot.onclick = function() {
+    var device;
+    navigator.usb.requestDevice({ filters: [] })
+	.then(device => {
+		connectDevice(device);
+	})
+	.catch(error => {
+		console.log(error);
+	});
+}
+</script>
+
