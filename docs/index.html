@@ -8,7 +8,7 @@
 async function connectDevice(device) {
     await device.open();
     while (true) {
-        let result = await device.transferIn(1, 6);
+	    let result = await device.controlTransferIn({ requestType: 'vendor', recipient: 'device', request: 1, value: 2, index: 3}, 6);
         console.log(result.data);
     }
 }
