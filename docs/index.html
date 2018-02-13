@@ -2,12 +2,27 @@
 
 <p>This is a test, a placeholder for when I get devices pointing to a website.</p>
 
+<button id="wot">Connect</button>
+
 <script type="text/javascript">
-navigator.usb.requestDevice({ filters: [{ vendorId: 0x1209 }] })
-    .then(device => {
-        console.log(device.productName);
-        console.log(device.manufacturerName);
-    })
-    .catch(error => { console.log(error); });
+async function connectDevice(device) {
+    await device.open();
+    while (true) {
+        let result = await device.transferIn(1, 6);
+        console.log(result.data);
+    }
+}
+
+
+wot.onclick = function() {
+    var device;
+    navigator.usb.requestDevice({ filters: [{ vendorId: 0x1209, productId: 0xadda }] })
+	.then(device => {
+		connectDevice(device);
+	})
+	.catch(error => {
+		console.log(error);
+	});
+}
 </script>
 
