@@ -23,7 +23,7 @@ Seems to work well on 17.10 'Artful':
 If using micronucleus:
 
     git submodule update --init
-    cd test
+    cd attiny
     make
     sudo micronucleus main.hex
 
