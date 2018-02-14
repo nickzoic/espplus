@@ -20,16 +20,14 @@
     }
 
 #define DEBUG_BYTES(buf, len) \
-    do { \
-        for (int i = 0; i<len; i++) { \
-	    LINDAT = "0123456789ABCDEF"[((uchar *)buf)[i]>>4]; \
-	    while (!(LINSIR & (1 << LTXOK))); \
-	    LINDAT = "0123456789ABCDEF"[((uchar *)buf)[i]&15]; \
-	    while (!(LINSIR & (1 << LTXOK))); \
-	    LINDAT = (i == len-1) ? '\n' : ' '; \
-	    while (!(LINSIR & (1 << LTXOK))); \
-        } \
-    } while (0)
+    for (int i = 0; i<len; i++) { \
+        LINDAT = "0123456789ABCDEF"[((uchar *)buf)[i]>>4]; \
+	while (!(LINSIR & (1 << LTXOK))); \
+	LINDAT = "0123456789ABCDEF"[((uchar *)buf)[i]&15]; \
+	while (!(LINSIR & (1 << LTXOK))); \
+	LINDAT = (i == len-1) ? '\n' : ' '; \
+	while (!(LINSIR & (1 << LTXOK))); \
+    }
 
 #else 
 
