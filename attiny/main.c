@@ -6,13 +6,14 @@
 #include <avr/pgmspace.h>
 #include "usbdrv.h"
 
+#define MIN(a,b) ((a)<(b)?(a):(b))
 #define DEBUG 1
 #include "debug.h"
 
 const char usbDescriptorDevice[] PROGMEM = {  // USB device descriptor
   0x12,  // sizeof(usbDescriptorDevice): length of descriptor in bytes
   USBDESCR_DEVICE,        // descriptor type
-  0x10, 0x02,             // USB version supported == 2.1
+  0x10, 0x02,             // USB version supported == 2.10
   USB_CFG_DEVICE_CLASS,
   USB_CFG_DEVICE_SUBCLASS,
   0,                      // protocol
@@ -43,6 +44,11 @@ const int usbDescriptorStringSerialNumber[] PROGMEM = {
     '0', '0', '0', '1'
 };
 
+const int usbDescriptorStringLanguageIds[] PROGMEM = {
+    USB_STRING_DESCRIPTOR_HEADER(2),
+    0x09, 0x04
+};
+
 /// START CARGO CULT FROM sowbug/weblight
 
 #define USB_BOS_DESCRIPTOR_TYPE (15)
@@ -50,9 +56,14 @@ const int usbDescriptorStringSerialNumber[] PROGMEM = {
 #define WL_REQUEST_WINUSB (0xfc)
 #define WL_REQUEST_WEBUSB (0xfe)
 
-const uchar BOS_DESCRIPTOR[] PROGMEM = {
+#define USB_BOS_DESCRIPTOR_LENGTH (57)
+const uchar BOS_DESCRIPTOR[USB_BOS_DESCRIPTOR_LENGTH] PROGMEM = {
   // BOS descriptor header
-  0x05, 0x0F, 0x39, 0x00, 0x02,
+  0x05, // bLength of this header
+  USB_BOS_DESCRIPTOR_TYPE,
+  USB_BOS_DESCRIPTOR_LENGTH, 0x00, // 16 bit length
+  //0x02, // bNumDeviceCaps
+  0x00, // bNumDeviceCaps
 
   // WebUSB Platform Capability descriptor
   0x18,  // Descriptor size (24 bytes)
@@ -93,7 +104,7 @@ const uchar BOS_DESCRIPTOR[] PROGMEM = {
 
 
 #define WINUSB_REQUEST_DESCRIPTOR (0x07)
-const uchar MS_OS_20_DESCRIPTOR_SET[MS_OS_20_DESCRIPTOR_LENGTH] PROGMEM = {
+uchar MS_OS_20_DESCRIPTOR_SET[MS_OS_20_DESCRIPTOR_LENGTH] = {
   // Microsoft OS 2.0 descriptor set header (table 10)
   0x0A, 0x00,  // Descriptor size (10 bytes)
   0x00, 0x00,  // MS OS 2.0 descriptor set header
@@ -119,8 +130,12 @@ usbMsgLen_t usbFunctionDescriptor(usbRequest_t *rq)
     switch (rq->wValue.bytes[1]) {
 	case USBDESCR_STRING:
 	    switch (rq->wValue.bytes[0]) {
+		case 0:
+		    usbMsgPtr = (usbMsgPtr_t)(usbDescriptorStringLanguageIds);
+		    return sizeof(usbDescriptorStringLanguageIds);
                 case 1:
 		    usbMsgPtr = (usbMsgPtr_t)(usbDescriptorStringManufacturer);
+		    DEBUG_BYTES(usbMsgPtr, sizeof(usbDescriptorStringManufacturer));
 		    return sizeof(usbDescriptorStringManufacturer);
                 case 2:
 		    usbMsgPtr = (usbMsgPtr_t)(usbDescriptorStringProduct);
@@ -131,13 +146,16 @@ usbMsgLen_t usbFunctionDescriptor(usbRequest_t *rq)
 	    }
 	    break;
 	case USB_BOS_DESCRIPTOR_TYPE:
+	    DEBUG_STR("sent bos\n");
 	    usbMsgPtr = (usbMsgPtr_t)(BOS_DESCRIPTOR);
-	    return sizeof(BOS_DESCRIPTOR);
+	    DEBUG_BYTES(BOS_DESCRIPTOR, USB_BOS_DESCRIPTOR_LENGTH);
+	    return USB_BOS_DESCRIPTOR_LENGTH;
     }
+    DEBUG_STR("what?\n");
     return 0;
 }
 
-const uchar webusb_url[] PROGMEM = { 27, 3, 1, 'n', 'i', 'c', 'k', 'z', 'o', 'i', 'c', '.', 'g', 'i', 't', 'h', 'u', 'b', '.', 'i', 'o', '/', 'e', 's', 'p', 'p', 'l', 'u', 's', '/' };
+uchar webusb_url[] = { 27, 3, 1, 'n', 'i', 'c', 'k', 'z', 'o', 'i', 'c', '.', 'g', 'i', 't', 'h', 'u', 'b', '.', 'i', 'o', '/', 'e', 's', 'p', 'p', 'l', 'u', 's', '/' };
 
 usbMsgLen_t usbFunctionSetup(uchar data[8])
 {
@@ -150,15 +168,18 @@ usbMsgLen_t usbFunctionSetup(uchar data[8])
 	        case WEBUSB_REQUEST_GET_ALLOWED_ORIGINS:
 		case WEBUSB_REQUEST_GET_URL:
 		    DEBUG_STR("sent url\n");
+		    DEBUG_BYTES(webusb_url, sizeof(webusb_url));
 	            usbMsgPtr = webusb_url;
 	            return sizeof(webusb_url);
 	    }
+	    break;
 	case WL_REQUEST_WINUSB:
 	    switch (rq->wIndex.word) {
 		case WINUSB_REQUEST_DESCRIPTOR:
 		    DEBUG_STR("sent ms_os_20\n");
 		    usbMsgPtr = MS_OS_20_DESCRIPTOR_SET;
-		    return sizeof(MS_OS_20_DESCRIPTOR_SET);
+		    DEBUG_BYTES(usbMsgPtr, MS_OS_20_DESCRIPTOR_LENGTH);
+		    return MS_OS_20_DESCRIPTOR_LENGTH;
 	    }
     }
     DEBUG_STR("wot?\n");		
@@ -175,6 +196,9 @@ uchar usbFunctionRead(uchar *data, uchar len)
     return len;
 }
 
+uchar foo[] = { 'f', 'o', 'o', 't', 'e', 's', 't' };
+const uchar bar[] PROGMEM = { 't', 'e', 's', 't', 'b', 'a', 'r' };
+
 int main() {
 
     wdt_enable(WDTO_1S);
@@ -182,6 +206,8 @@ int main() {
     DEBUG_INIT();
     DEBUG_STR("hello!\n");
 
+    DEBUG_BYTES(foo, sizeof(foo));
+    DEBUG_BYTES(bar, sizeof(bar));
     usbInit();
     usbDeviceDisconnect();
     _delay_ms(500);

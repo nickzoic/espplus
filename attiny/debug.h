@@ -21,11 +21,10 @@
 
 #define DEBUG_BYTES(buf, len) \
     do { \
-        unsigned char *x = (unsigned char *)buf; \
         for (int i = 0; i<len; i++) { \
-	    LINDAT = "0123456789ABCDEF"[x[i]>>4]; \
+	    LINDAT = "0123456789ABCDEF"[((uchar *)buf)[i]>>4]; \
 	    while (!(LINSIR & (1 << LTXOK))); \
-	    LINDAT = "0123456789ABCDEF"[x[i]&15]; \
+	    LINDAT = "0123456789ABCDEF"[((uchar *)buf)[i]&15]; \
 	    while (!(LINSIR & (1 << LTXOK))); \
 	    LINDAT = (i == len-1) ? '\n' : ' '; \
 	    while (!(LINSIR & (1 << LTXOK))); \
