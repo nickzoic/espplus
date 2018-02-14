@@ -157,7 +157,7 @@ usbMsgLen_t usbFunctionDescriptor(usbRequest_t *rq)
     return 0;
 }
 
-uchar webusb_url[] = { 27, 3, 1, 'n', 'i', 'c', 'k', 'z', 'o', 'i', 'c', '.', 'g', 'i', 't', 'h', 'u', 'b', '.', 'i', 'o', '/', 'e', 's', 'p', 'p', 'l', 'u', 's', '/' };
+uchar webusb_url[] = { 30, 3, 1, 'n', 'i', 'c', 'k', 'z', 'o', 'i', 'c', '.', 'g', 'i', 't', 'h', 'u', 'b', '.', 'i', 'o', '/', 'e', 's', 'p', 'p', 'l', 'u', 's', '/' };
 
 usbMsgLen_t usbFunctionSetup(uchar data[8])
 {
