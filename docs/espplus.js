@@ -42,7 +42,11 @@ document.getElementById('add-device').addEventListener('click', async () => {
 });
 
 async function connect_device(device) {
+    var decoder = new TextDecoder();
     await device.open();
     let result = await device.controlTransferIn({ requestType: 'vendor', recipient: 'device', request: 1, value: 2, index: 3}, 6);
     console.log(result.data);
+    document.getElementById('console').innerText += decoder.decode(result.data);
 }
+
+

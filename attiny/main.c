@@ -186,7 +186,7 @@ usbMsgLen_t usbFunctionSetup(uchar data[8])
 	    }
     }
     DEBUG_STR("unknown request\n");
-    return 0;    
+    //return 0;    
     return USB_NO_MSG; // this tells it to call usbFunctionRead instead.
 }
 
