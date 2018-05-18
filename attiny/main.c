@@ -190,13 +190,46 @@ usbMsgLen_t usbFunctionSetup(uchar data[8])
     return USB_NO_MSG; // this tells it to call usbFunctionRead instead.
 }
 
+typedef struct {
+    uchar buf[128];
+    int head, tail;
+} ringbuf_t;
+
+int buf_empty(ringbuf_t *rb) {
+    return rb->head == rb->tail;
+}
+
+uchar buf_pop(ringbuf_t *rb) {
+    uchar x = rb->buf[rb->head];
+    rb->head = (rb->head + 1) % sizeof(rb->buf);
+    return x;
+}
+
+void buf_push(ringbuf_t *rb, uchar x) {
+    rb->buf[rb->tail] = x;
+    rb->tail = (rb->tail + 1) % sizeof(rb->buf);
+}
+
+ringbuf_t rx_buf = {0}, tx_buf = {0};
+
 uchar usbFunctionRead(uchar *data, uchar len)
 {
-    DEBUG_STR("READ!");
-    DEBUG_BYTES(&len, 1);
-    memset(data, 'A'+len, len);
-    DEBUG_BYTES(data, len);
+    //data[0] = 'A';
+    //return 1;
+
+    for (int i=0; i<len; i++) {
+	if (buf_empty(&tx_buf)) return i;
+        data[i] = buf_pop(&tx_buf);
+    }
     return len;
+}
+
+uchar usbFunctionWrite(uchar *data, uchar len)
+{
+    for (int i=0; i<len; i++) {
+	buf_push(&tx_buf, data[i]);
+    }
+    return 1;
 }
 
 int main() {
@@ -220,6 +253,7 @@ int main() {
         PORTB |= (1 << PORTB1);
         usbPoll();
         PORTB &= ~(1 << PORTB1);
+	usbPoll();
         /*if (usbInterruptIsReady()) {
 	    DEBUG_STR("i");
 	    usbSetInterrupt((void *)&reportBuffer, sizeof(reportBuffer));	

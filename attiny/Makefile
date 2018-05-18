@@ -7,16 +7,16 @@ BUILD=./build
 
 all: ${BUILD}/main.hex ${BUILD}/main.lst
 
-${BUILD}/usbdrv.o: ${USB_DRV}/usbdrv.c
-	${CC} ${CFLAGS} -c -o $@ $^
+${BUILD}/usbdrv.o: ${USB_DRV}/usbdrv.c usbconfig.h
+	${CC} ${CFLAGS} -c -o $@ $<
 
 ${BUILD}/usbdrvasm.o: ${USB_DRV}/usbdrvasm.S
-	${CC} ${CFLAGS} -x assembler-with-cpp -c -o $@ $^
+	${CC} ${CFLAGS} -x assembler-with-cpp -c -o $@ $<
 
 ${BUILD}/main.elf: ${BUILD}/main.o ${BUILD}/usbdrv.o ${BUILD}/usbdrvasm.o
 	${CC} ${CFLAGS} -o $@ $^
 
-${BUILD}/main.o: main.c debug.h
+${BUILD}/main.o: main.c debug.h usbconfig.h
 	${CC} ${CFLAGS} -c -o $@ $<
 
 %.hex: %.elf

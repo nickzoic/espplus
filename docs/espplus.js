@@ -41,12 +41,30 @@ document.getElementById('add-device').addEventListener('click', async () => {
     }
 });
 
-async function connect_device(device) {
-    var decoder = new TextDecoder();
-    await device.open();
-    let result = await device.controlTransferIn({ requestType: 'vendor', recipient: 'device', request: 1, value: 2, index: 3}, 6);
-    console.log(result.data);
-    document.getElementById('console').innerText += decoder.decode(result.data);
-}
+var keyboard = document.getElementById('keyboard');
+var console = document.getElementById('console');
+var decoder = new TextDecoder();
+var encoder = new TextEncoder();
+var config = { requestType: 'vendor', recipient: 'device', request: 1, value: 2, index: 3};
 
+async function connect_device(device) {
+
+    await device.open();
+    var connected = 1;
+
+    keyboard.onkeypress = async function (ev) {
+        if (ev.code == 'Enter') {
+            await device.controlTransferOut(config, encoder.encode(keyboard.value + "\r\n"));
+	    keyboard.value = "";
+	}
+    }
+
+    async function poll() {
+        let result = await device.controlTransferIn(config, 6);
+	console.innerText += decoder.decode(result.data);
+	setTimeout(poll, 20);
+    }
+    poll();
+
+}
 
