@@ -4,3 +4,6 @@
 [submodule "v-usb"]
 	path = attiny/v-usb
 	url = https://github.com/obdev/v-usb
+[submodule "atmega/lufa"]
+	path = atmega/lufa
+	url = https://github.com/abcminiuser/lufa
