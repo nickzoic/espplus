@@ -1,4 +1,4 @@
-# espplus/attiny/README.md
+# espplus/atmega/README.md
 
 Targetting the [ATmega32u4](https://www.microchip.com/wwwproducts/en/ATmega32u4)
 as found in this obsolete

@@ -96,6 +96,76 @@ enum StringDescriptors_t
 //                                    const void** const DescriptorAddress)
 //ATTR_WARN_UNUSED_RESULT ATTR_NON_NULL_PTR_ARG(3);
 
+#define USB_BOS_DESCRIPTOR_TYPE (15)
+#define USB_BOS_DESCRIPTOR_LENGTH (57)
+#define WINUSB_REQUEST_DESCRIPTOR (0x07)
+#define MS_OS_20_DESCRIPTOR_LENGTH (0x1e)
+#define WL_REQUEST_WINUSB (0xfc)
+#define WL_REQUEST_WEBUSB (0xfe)
+
+const uint8_t USB_BOS_DESCRIPTOR[USB_BOS_DESCRIPTOR_LENGTH] = {
+  // BOS descriptor header
+  0x05, // bLength of this header
+  USB_BOS_DESCRIPTOR_TYPE,
+  USB_BOS_DESCRIPTOR_LENGTH, 0x00, // 16 bit length
+  0x02, // bNumDeviceCaps
+
+  // WebUSB Platform Capability descriptor
+  0x18,  // Descriptor size (24 bytes)
+  0x10,  // Descriptor type (Device Capability)
+  0x05,  // Capability type (Platform)
+  0x00,  // Reserved
+
+  // WebUSB Platform Capability ID (3408b638-09a9-47a0-8bfd-a0768815b665)
+  0x38, 0xB6, 0x08, 0x34,
+  0xA9, 0x09,
+  0xA0, 0x47,
+  0x8B, 0xFD,
+  0xA0, 0x76, 0x88, 0x15, 0xB6, 0x65,
+
+  0x00, 0x01,         // WebUSB version 1.0
+  WL_REQUEST_WEBUSB,  // Vendor-assigned WebUSB request code
+  0x01,               // Landing page: https://sowbug.github.io/webusb
+
+  // Microsoft OS 2.0 Platform Capability Descriptor
+  // Thanks http://janaxelson.com/files/ms_os_20_descriptors.c
+  0x1C,  // Descriptor size (28 bytes)
+  0x10,  // Descriptor type (Device Capability)
+  0x05,  // Capability type (Platform)
+  0x00,  // Reserved
+
+  // MS OS 2.0 Platform Capability ID (D8DD60DF-4589-4CC7-9CD2-659D9E648A9F)
+  0xDF, 0x60, 0xDD, 0xD8,
+  0x89, 0x45,
+  0xC7, 0x4C,
+  0x9C, 0xD2,
+  0x65, 0x9D, 0x9E, 0x64, 0x8A, 0x9F,
+
+  0x00, 0x00, 0x03, 0x06,    // Windows version (8.1) (0x06030000)
+  MS_OS_20_DESCRIPTOR_LENGTH, 0x00,
+  WL_REQUEST_WINUSB,         // Vendor-assigned bMS_VendorCode
+  0x00                       // Doesn’t support alternate enumeration
+};
+
+uint8_t MS_OS_20_DESCRIPTOR_SET[MS_OS_20_DESCRIPTOR_LENGTH] = {
+  // Microsoft OS 2.0 descriptor set header (table 10)
+  0x0A, 0x00,  // Descriptor size (10 bytes)
+  0x00, 0x00,  // MS OS 2.0 descriptor set header
+  0x00, 0x00, 0x03, 0x06,  // Windows version (8.1) (0x06030000)
+  MS_OS_20_DESCRIPTOR_LENGTH, 0x00,  // Size, MS OS 2.0 descriptor set
+
+  // Microsoft OS 2.0 compatible ID descriptor (table 13)
+  0x14, 0x00,  // wLength
+  0x03, 0x00,  // MS_OS_20_FEATURE_COMPATIBLE_ID
+  'W',  'I',  'N',  'U',  'S',  'B',  0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+#define WEBUSB_REQUEST_GET_ALLOWED_ORIGINS (0x01)
+#define WEBUSB_REQUEST_GET_URL (0x02)
+
+uint8_t webusb_url[] = { 30, 3, 1, 'n', 'i', 'c', 'k', 'z', 'o', 'i', 'c', '.', 'g', 'i', 't', 'h', 'u', 'b', '.', 'i', 'o', '/', 'e', 's', 'p', 'p', 'l', 'u', 's', '/' };
+
 // Descriptors.c
 
 
@@ -287,32 +357,51 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
 
     switch (DescriptorType)
     {
-    case DTYPE_Device:
-        Address = &DeviceDescriptor;
-        Size    = sizeof(USB_Descriptor_Device_t);
-        break;
-    case DTYPE_Configuration:
-        Address = &ConfigurationDescriptor;
-        Size    = sizeof(USB_Descriptor_Configuration_t);
-        break;
-    case DTYPE_String:
-        switch (DescriptorNumber)
-        {
-        case STRING_ID_Language:
-            Address = &LanguageString;
-            Size    = pgm_read_byte(&LanguageString.Header.Size);
+        case DTYPE_Device:
+            Address = &DeviceDescriptor;
+            Size    = sizeof(USB_Descriptor_Device_t);
             break;
-        case STRING_ID_Manufacturer:
-            Address = &ManufacturerString;
-            Size    = pgm_read_byte(&ManufacturerString.Header.Size);
+        case DTYPE_Configuration:
+            Address = &ConfigurationDescriptor;
+            Size    = sizeof(USB_Descriptor_Configuration_t);
             break;
-        case STRING_ID_Product:
-            Address = &ProductString;
-            Size    = pgm_read_byte(&ProductString.Header.Size);
+        case DTYPE_String:
+            switch (DescriptorNumber)
+            {
+                case STRING_ID_Language:
+                    Address = &LanguageString;
+                    Size    = pgm_read_byte(&LanguageString.Header.Size);
+                    break;
+                case STRING_ID_Manufacturer:
+                    Address = &ManufacturerString;
+                    Size    = pgm_read_byte(&ManufacturerString.Header.Size);
+                    break;
+                case STRING_ID_Product:
+                    Address = &ProductString;
+                    Size    = pgm_read_byte(&ProductString.Header.Size);
+                    break;
+            }
             break;
-        }
+	case USB_BOS_DESCRIPTOR_TYPE:
+	    Address = &USB_BOS_DESCRIPTOR;
+	    Size = USB_BOS_DESCRIPTOR_LENGTH;
+	    break;
+	case WL_REQUEST_WEBUSB: 
+            switch (wIndex) {
+                case WEBUSB_REQUEST_GET_ALLOWED_ORIGINS:
+                case WEBUSB_REQUEST_GET_URL:
+                    Address = webusb_url;
+                    Size = sizeof(webusb_url);
+            }
+            break;
+        case WL_REQUEST_WINUSB:
+            switch (wIndex) {
+                case WINUSB_REQUEST_DESCRIPTOR:
+                    Address = MS_OS_20_DESCRIPTOR_SET;
+                    Size = MS_OS_20_DESCRIPTOR_LENGTH;
+            }
+	    break;
 
-        break;
     }
 
     *DescriptorAddress = Address;
