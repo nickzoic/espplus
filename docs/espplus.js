@@ -43,6 +43,8 @@ document.getElementById('add-device').addEventListener('click', async () => {
 
 var keyboard = document.getElementById('keyboard');
 var typewriter = document.getElementById('typewriter');
+var stopper = document.getElementById('stopper');
+var hammer = document.getElementById('hammer');
 var decoder = new TextDecoder();
 var encoder = new TextEncoder();
 
@@ -56,13 +58,22 @@ async function connect_device(device) {
     keyboard.onkeypress = async function (ev) {
         if (ev.code == 'Enter') {
         	console.log(keyboard.value);
-			let b1 = encoder.encode(keyboard.value + "\r\n");
-			let b2 = new Uint8Array(64);
-			b2.set(b1);
-			await device.transferOut(5, b2);
+		        //let b1 = encoder.encode(keyboard.value + "\r\n");
+			//let b2 = new Uint8Array(64);
+			//b2.set(b1);
+			//await device.transferOut(5, b2);
+	await	device.transferOut(5, encoder.encode(keyboard.value + "\r\n"));
 			keyboard.value = "";
 		}
     }
+
+     stopper.onclick = async function (ev) {
+	     await device.transferOut(5, new Uint8Array([3]));
+     }
+
+     hammer.onclick = async function (ev) {
+	     await device.transferOut(5, new Uint8Array([4]));
+     }
 
 	while(connected) {
   	    let result = await device.transferIn(4, 64);

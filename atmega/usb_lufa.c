@@ -714,6 +714,30 @@ void usb_task(void)
 
     }
 
+    /* Select the Vendor Rx Endpoint */
+    Endpoint_SelectEndpoint(GENERIC_OUT_EPADDR);
+
+    /* Check to see if any data has been received */
+    if (Endpoint_IsOUTReceived())
+    {
+        /* Create a temp buffer big enough to hold the incoming endpoint packet */
+        uint8_t  Buffer[Endpoint_BytesInEndpoint()];
+
+        /* Remember how large the incoming packet is */
+        uint16_t DataLength = Endpoint_BytesInEndpoint();
+
+        /* Read in the incoming packet into the buffer */
+        Endpoint_Read_Stream_LE(&Buffer, DataLength, NULL);
+
+        /* Finalize the stream transfer to send the last packet */
+        Endpoint_ClearOUT();
+
+        _usb_recv(USB_CHANNEL_HID, (uint8_t *)Buffer, DataLength);
+
+    }
+
+    return;
+
         Endpoint_SelectEndpoint(GENERIC_OUT_EPADDR);
 
         /* Check to see if a packet has been sent from the host */
