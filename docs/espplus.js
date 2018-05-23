@@ -42,29 +42,35 @@ document.getElementById('add-device').addEventListener('click', async () => {
 });
 
 var keyboard = document.getElementById('keyboard');
-var console = document.getElementById('console');
+var typewriter = document.getElementById('typewriter');
 var decoder = new TextDecoder();
 var encoder = new TextEncoder();
-var config = { requestType: 'vendor', recipient: 'device', request: 1, value: 2, index: 3};
 
 async function connect_device(device) {
 
     await device.open();
+    await device.claimInterface(2);
+
     var connected = 1;
 
     keyboard.onkeypress = async function (ev) {
         if (ev.code == 'Enter') {
-            await device.controlTransferOut(config, encoder.encode(keyboard.value + "\r\n"));
-	    keyboard.value = "";
-	}
+        	console.log(keyboard.value);
+			let b1 = encoder.encode(keyboard.value + "\r\n");
+			let b2 = new Uint8Array(64);
+			b2.set(b1);
+			await device.transferOut(5, b2);
+			keyboard.value = "";
+		}
     }
 
-    async function poll() {
-        let result = await device.controlTransferIn(config, 6);
-	console.innerText += decoder.decode(result.data);
-	setTimeout(poll, 20);
-    }
-    poll();
+	while(connected) {
+  	    let result = await device.transferIn(4, 64);
+  	    let message = new Uint8Array(result.data.buffer).filter(c => c != 0);
+  	    if (message.byteLength > 0) {
+		    typewriter.innerText += decoder.decode(message);
+	    }
+	}
 
 }
 

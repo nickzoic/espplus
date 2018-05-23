@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # taken from http://www.piware.de/2011/01/creating-an-https-server-in-python/
 # via https://gist.github.com/dergachev/7028596 and 2to3
@@ -19,4 +19,5 @@ certfile = tempfile.mktemp(suffix='.pem')
 os.system('openssl req -new -x509 -subj /CN=localhost -keyout %s -out %s -days 30 -nodes' % (certfile, certfile))
 httpd = http.server.HTTPServer(('localhost', 4443), http.server.SimpleHTTPRequestHandler)
 httpd.socket = ssl.wrap_socket (httpd.socket, certfile=certfile, server_side=True)
+print("Listening on localhost:4443")
 httpd.serve_forever()

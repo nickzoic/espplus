@@ -36,7 +36,7 @@
 
 /** Size in bytes of the CDC data IN and OUT endpoint. */
 #define CDC_TXRX_EPSIZE              64
-#define GENERIC_REPORT_SIZE            64
+#define GENERIC_REPORT_SIZE           64
 
 /* Type Defines: */
 /** Type define for the device configuration descriptor structure. This must be defined in the
@@ -61,10 +61,15 @@ typedef struct
     USB_Descriptor_Endpoint_t                CDC_DataInEndpoint;
 
     // Generic HID Interface
-    USB_Descriptor_Interface_t            HID_Interface;
-    USB_HID_Descriptor_HID_t              HID_GenericHID;
-    USB_Descriptor_Endpoint_t             HID_ReportINEndpoint;
-    USB_Descriptor_Endpoint_t             HID_ReportOUTEndpoint;
+    //USB_Descriptor_Interface_t            HID_Interface;
+    //USB_HID_Descriptor_HID_t              HID_GenericHID;
+    //USB_Descriptor_Endpoint_t             HID_ReportINEndpoint;
+    //USB_Descriptor_Endpoint_t             HID_ReportOUTEndpoint;
+    
+    // Vendor-specific
+    USB_Descriptor_Interface_t              My_Interface;
+    USB_Descriptor_Endpoint_t               My_In_Endpoint;
+    USB_Descriptor_Endpoint_t               My_Out_Endpoint;
 
 } USB_Descriptor_Configuration_t;
 
@@ -344,7 +349,36 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
         .EndpointSize           = CDC_TXRX_EPSIZE,
         .PollingIntervalMS      = 0x05
     },
-           .HID_Interface =
+    .My_Interface = 
+    {
+	    .Header = { .Size = sizeof(USB_Descriptor_Interface_t), .Type = DTYPE_Interface },
+	    .InterfaceNumber = INTERFACE_ID_GenericHID,
+	    .AlternateSetting = 0x00,
+	    .TotalEndpoints = 2,
+	    .Class = 0xFF,
+	    .SubClass = 0,
+	    .Protocol = 0,
+            .InterfaceStrIndex = NO_DESCRIPTOR
+},
+	.My_In_Endpoint = {
+                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
+
+                        .EndpointAddress        = GENERIC_IN_EPADDR,
+                        .Attributes             = (EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+                        .EndpointSize           = GENERIC_EPSIZE,
+                        .PollingIntervalMS      = 0x05
+         },
+	 .My_Out_Endpoint = {
+		 
+                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
+
+                        .EndpointAddress        = GENERIC_OUT_EPADDR,
+                        .Attributes             = (EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+                        .EndpointSize           = GENERIC_EPSIZE,
+                        .PollingIntervalMS      = 0x05
+	 }
+
+/*           .HID_Interface =
                 {
                         .Header                 = {.Size = sizeof(USB_Descriptor_Interface_t), .Type = DTYPE_Interface},
 
@@ -390,7 +424,7 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
                         .EndpointSize           = GENERIC_EPSIZE,
                         .PollingIntervalMS      = 0x05
                 }
-
+*/
 
 };
 
@@ -693,15 +727,34 @@ void usb_task(void)
 
                         /* Read Generic Report Data */
                         Endpoint_Read_Stream_LE(&GenericData, sizeof(GenericData), NULL);
-
+			int len = strnlen(GenericData, GENERIC_REPORT_SIZE);
                         /* Process Generic Report Data */
-                        _usb_recv(USB_CHANNEL_HID, GenericData, sizeof(GenericData));
+                        _usb_recv(USB_CHANNEL_HID, GenericData, len);
                 }
 
                 /* Finalize the stream transfer to send the last packet */
                 Endpoint_ClearOUT();
         }
 
+	return;
+
+        Endpoint_SelectEndpoint(GENERIC_IN_EPADDR);
+
+        /* Check to see if the host is ready to accept another packet */
+        if (Endpoint_IsINReady())
+        {
+                /* Create a temporary buffer to hold the report to send to the host */
+                uint8_t GenericData[GENERIC_REPORT_SIZE];
+
+                /* Create Generic Report Data */
+                //CreateGenericHIDReport(GenericData);
+
+                /* Write Generic Report Data */
+                Endpoint_Write_Stream_LE(&GenericData, sizeof(GenericData), NULL);
+
+                /* Finalize the stream transfer to send the last packet */
+                Endpoint_ClearIN();
+        }
 }
 
 void usb_send(uint8_t channel, uint8_t *message, int16_t size) {
@@ -726,9 +779,14 @@ void usb_send(uint8_t channel, uint8_t *message, int16_t size) {
     case USB_CHANNEL_HID:
 
         Endpoint_SelectEndpoint(GENERIC_IN_EPADDR);
+        //Endpoint_WaitUntilReady();
+	//uint8_t buffer[GENERIC_REPORT_SIZE] = {0};
+	//memcpy(buffer, message, size);
+	//Endpoint_Write_Stream_LE(buffer, GENERIC_REPORT_SIZE, NULL);
+	Endpoint_Write_Stream_LE(message, size, NULL);
+	Endpoint_ClearIN();
         Endpoint_WaitUntilReady();
-        Endpoint_Write_Stream_LE(message, size, NULL);
-        Endpoint_ClearIN();
+	Endpoint_ClearIN();
         break;
     }
 

@@ -1,6 +1,7 @@
 #include "usb.h"
 #include <stdio.h>
 #include <avr/io.h>
+#include <avr/interrupt.h>
 
 #define BAUD 115200
 #include <util/setbaud.h>
@@ -14,7 +15,7 @@ void uart_init() {
     UCSR1A &= ~(1 << U2X1);
 #endif
     UCSR1C = _BV(UCSZ11) | _BV(UCSZ10);
-    UCSR1B = _BV(RXEN1) | _BV(TXEN1);
+    UCSR1B = _BV(RXEN1) | _BV(TXEN1) | _BV(RXCIE1);
 }
 
 void uart_send(uint8_t *message, uint16_t size) {
@@ -24,13 +25,29 @@ void uart_send(uint8_t *message, uint16_t size) {
 	}
 }
 
+volatile uint8_t ring_buff[1024] = { 0 };
+volatile uint16_t ring_head = 0;
+volatile uint16_t ring_tail = 0;
+
+ISR(USART1_RX_vect)
+{
+    ring_buff[ring_head] = UDR1;
+    ring_head = (ring_head + 1) % sizeof(ring_buff);
+}
+
 void uart_task() {
-    uint8_t message[16];
+    uint8_t message[64];
     int i = 0;
-    while (i < sizeof(message) && (UCSR1A & _BV(RXC1))) {
-	message[i++] = UDR1;
+    cli();
+    while (i < sizeof(message) && ring_head != ring_tail) {
+	message[i++] = ring_buff[ring_tail];
+	ring_tail = (ring_tail + 1) % sizeof(ring_buff);
     }
-    usb_send(USB_CHANNEL_CDC, message, i);
+    sei();
+    if (i) {
+        usb_send(USB_CHANNEL_HID, message, i);
+        //usb_send(USB_CHANNEL_CDC, message, i);
+    }
 }
 
 void usb_recv(uint8_t channel, uint8_t *message, int16_t size) {
@@ -41,6 +58,8 @@ void usb_recv(uint8_t channel, uint8_t *message, int16_t size) {
 int main(void) {
     usb_init(usb_recv);
     uart_init();
+
+    sei();
 
 //esp_reset();
     
