@@ -24,8 +24,11 @@ CC_FLAGS     = -DUSE_LUFA_CONFIG_HEADER -I.
 LD_FLAGS     =
 
 # Default target
-all:
+all: ${TARGET}.hex
 
+deploy: ${TARGET}.hex
+	avrdude -p ${MCU} -c usbasp -U $<
+    
 # Include LUFA-specific DMBS extension modules
 DMBS_LUFA_PATH ?= $(LUFA_PATH)/Build/LUFA
 include $(DMBS_LUFA_PATH)/lufa-sources.mk
