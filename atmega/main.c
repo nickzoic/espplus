@@ -18,6 +18,11 @@ void uart_init() {
     UCSR1B = _BV(RXEN1) | _BV(TXEN1) | _BV(RXCIE1);
 }
 
+void esp_init() {
+    DDRD |= _BV(DDD4) | _BV(DDD5);
+    PORTD |= _BV(PORTD4) | _BV(PORTD5);
+}
+
 void uart_send(uint8_t *message, uint16_t size) {
 	for (uint16_t i = 0; i < size; i++) {
 		loop_until_bit_is_set(UCSR1A, UDRE1);
@@ -46,7 +51,7 @@ void uart_task() {
     sei();
     if (i) {
         usb_send(USB_CHANNEL_HID, message, i);
-        //usb_send(USB_CHANNEL_CDC, message, i);
+        usb_send(USB_CHANNEL_CDC, message, i);
     }
 }
 
@@ -58,6 +63,7 @@ void usb_recv(uint8_t channel, uint8_t *message, int16_t size) {
 int main(void) {
     usb_init(usb_recv);
     uart_init();
+    esp_init();
 
     sei();
 
