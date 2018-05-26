@@ -12,6 +12,12 @@
 #include <LUFA/Drivers/USB/USB.h>
 #include <LUFA/Platform/Platform.h>
 
+#define ESPPLUS_VENDOR
+#define ESPPLUS_HID_NO
+#define ESPPLUS_MSOS20
+
+usb_recv_t *_usb_recv = NULL;
+
 // Descriptors.h
 
 /* Macros: */
@@ -30,13 +36,24 @@
 /** Endpoint address of the Generic HID reporting OUT endpoint. */
 #define GENERIC_OUT_EPADDR        (ENDPOINT_DIR_OUT | 5)
 
+#define VENDOR_IN_EPADDR (ENDPOINT_DIR_IN | 6)
+#define VENDOR_OUT_EPADDR (ENDPOINT_DIR_OUT | 7)
+
 /** Size in bytes of the CDC device-to-host notification IN endpoint. */
 #define CDC_NOTIFICATION_EPSIZE        8
-#define GENERIC_EPSIZE                 8
+#define GENERIC_EPSIZE                 64
 
 /** Size in bytes of the CDC data IN and OUT endpoint. */
 #define CDC_TXRX_EPSIZE              64
 #define GENERIC_REPORT_SIZE           64
+
+// missing stuff
+// these don't seem to be defined anywhere in LUFA.
+//
+#define CDC_ACM_SUPPORT_FEATURE_REQUESTS (1)
+#define CDC_ACM_SUPPORT_LINE_REQUESTS (2)
+#define CDC_ACM_SUPPORT_SENDBREAK_REQUESTS (4)
+#define CDC_ACM_SUPPORT_NOTIFY_REQUESTS (8)
 
 /* Type Defines: */
 /** Type define for the device configuration descriptor structure. This must be defined in the
@@ -47,8 +64,23 @@ typedef struct
 {
     USB_Descriptor_Configuration_Header_t    Config;
 
+#ifdef ESPPLUS_VENDOR 
+    // Vendor-specific
+    USB_Descriptor_Interface_t              My_Interface;
+    USB_Descriptor_Endpoint_t               My_In_Endpoint;
+    USB_Descriptor_Endpoint_t               My_Out_Endpoint;
+#endif
+
+#ifdef ESPPLUS_HID
+    // Generic HID Interface
+    USB_Descriptor_Interface_t            HID_Interface;
+    USB_HID_Descriptor_HID_t              HID_GenericHID;
+    USB_Descriptor_Endpoint_t             HID_ReportINEndpoint;
+    USB_Descriptor_Endpoint_t             HID_ReportOUTEndpoint;
+#endif
+
     // CDC Control Interface
-    /*USB_Descriptor_Interface_Association_t   CDC_IAD;*/
+    USB_Descriptor_Interface_Association_t   CDC_IAD;
     USB_Descriptor_Interface_t               CDC_CCI_Interface;
     USB_CDC_Descriptor_FunctionalHeader_t    CDC_Functional_Header;
     USB_CDC_Descriptor_FunctionalACM_t       CDC_Functional_ACM;
@@ -60,16 +92,6 @@ typedef struct
     USB_Descriptor_Endpoint_t                CDC_DataOutEndpoint;
     USB_Descriptor_Endpoint_t                CDC_DataInEndpoint;
 
-    // Generic HID Interface
-    //USB_Descriptor_Interface_t            HID_Interface;
-    //USB_HID_Descriptor_HID_t              HID_GenericHID;
-    //USB_Descriptor_Endpoint_t             HID_ReportINEndpoint;
-    //USB_Descriptor_Endpoint_t             HID_ReportOUTEndpoint;
-    
-    // Vendor-specific
-    USB_Descriptor_Interface_t              My_Interface;
-    USB_Descriptor_Endpoint_t               My_In_Endpoint;
-    USB_Descriptor_Endpoint_t               My_Out_Endpoint;
 
 } USB_Descriptor_Configuration_t;
 
@@ -102,36 +124,29 @@ enum StringDescriptors_t
 //ATTR_WARN_UNUSED_RESULT ATTR_NON_NULL_PTR_ARG(3);
 
 #define USB_BOS_DESCRIPTOR_TYPE (15)
-#define USB_BOS_DESCRIPTOR_LENGTH (57)
 #define WINUSB_REQUEST_DESCRIPTOR (0x07)
-#define MS_OS_20_DESCRIPTOR_LENGTH (0x1e)
 #define WL_REQUEST_WINUSB (0xfc)
 #define WL_REQUEST_WEBUSB (0xfe)
+#define MS_OS_20_DESCRIPTOR_LENGTH (0x1e)  // XXX not really
 
-const uint8_t USB_BOS_DESCRIPTOR[USB_BOS_DESCRIPTOR_LENGTH] = {
+#ifdef ESPPLUS_MSOS20
+#define USB_BOS_DESCRIPTOR_LENGTH (57)
+#else
+#define USB_BOS_DESCRIPTOR_LENGTH (29)
+#endif
+
+const uint8_t PROGMEM USB_BOS_DESCRIPTOR[USB_BOS_DESCRIPTOR_LENGTH] = {
   // BOS descriptor header
   0x05, // bLength of this header
   USB_BOS_DESCRIPTOR_TYPE,
   USB_BOS_DESCRIPTOR_LENGTH, 0x00, // 16 bit length
+#ifdef ESPPLUS_MSOS20
   0x02, // bNumDeviceCaps
+#else
+  0x01, // bNumDeviceCaps
+#endif
 
-  // WebUSB Platform Capability descriptor
-  0x18,  // Descriptor size (24 bytes)
-  0x10,  // Descriptor type (Device Capability)
-  0x05,  // Capability type (Platform)
-  0x00,  // Reserved
-
-  // WebUSB Platform Capability ID (3408b638-09a9-47a0-8bfd-a0768815b665)
-  0x38, 0xB6, 0x08, 0x34,
-  0xA9, 0x09,
-  0xA0, 0x47,
-  0x8B, 0xFD,
-  0xA0, 0x76, 0x88, 0x15, 0xB6, 0x65,
-
-  0x00, 0x01,         // WebUSB version 1.0
-  WL_REQUEST_WEBUSB,  // Vendor-assigned WebUSB request code
-  0x01,               // Landing page: https://sowbug.github.io/webusb
-
+#ifdef ESPPLUS_MSOS20
   // Microsoft OS 2.0 Platform Capability Descriptor
   // Thanks http://janaxelson.com/files/ms_os_20_descriptors.c
   0x1C,  // Descriptor size (28 bytes)
@@ -149,10 +164,30 @@ const uint8_t USB_BOS_DESCRIPTOR[USB_BOS_DESCRIPTOR_LENGTH] = {
   0x00, 0x00, 0x03, 0x06,    // Windows version (8.1) (0x06030000)
   MS_OS_20_DESCRIPTOR_LENGTH, 0x00,
   WL_REQUEST_WINUSB,         // Vendor-assigned bMS_VendorCode
-  0x00                       // Doesn’t support alternate enumeration
+  0x00,                       // Doesn’t support alternate enumeration
+#endif
+
+  // WebUSB Platform Capability descriptor
+  0x18,  // Descriptor size (24 bytes)
+  0x10,  // Descriptor type (Device Capability)
+  0x05,  // Capability type (Platform)
+  0x00,  // Reserved
+
+  // WebUSB Platform Capability ID (3408b638-09a9-47a0-8bfd-a0768815b665)
+  0x38, 0xB6, 0x08, 0x34,
+  0xA9, 0x09,
+  0xA0, 0x47,
+  0x8B, 0xFD,
+  0xA0, 0x76, 0x88, 0x15, 0xB6, 0x65,
+
+  0x00, 0x01,         // WebUSB version 1.0
+  WL_REQUEST_WEBUSB,  // Vendor-assigned WebUSB request code
+  0x01,               // Landing page is string 1.
+
 };
 
-uint8_t MS_OS_20_DESCRIPTOR_SET[MS_OS_20_DESCRIPTOR_LENGTH] = {
+#ifdef ESPPLUS_MSOS20
+const uint8_t PROGMEM MS_OS_20_DESCRIPTOR_SET[MS_OS_20_DESCRIPTOR_LENGTH] = {
   // Microsoft OS 2.0 descriptor set header (table 10)
   0x0A, 0x00,  // Descriptor size (10 bytes)
   0x00, 0x00,  // MS OS 2.0 descriptor set header
@@ -164,12 +199,25 @@ uint8_t MS_OS_20_DESCRIPTOR_SET[MS_OS_20_DESCRIPTOR_LENGTH] = {
   0x03, 0x00,  // MS_OS_20_FEATURE_COMPATIBLE_ID
   'W',  'I',  'N',  'U',  'S',  'B',  0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+#if 0
+  0x84, 0x00, 0x04, 0x00, // length, reg property
+  0x07, 0x00, // reg_multi_sz
+  0x2a, 0x00, // wPropertyNameLength
+  'D',0,'e',0,'v',0,'i',0,'c',0,'e',0,'I',0,'n',0,'t',0,'e',0,'r',0,
+      'f',0,'a',0,'c',0,'e',0,'G',0,'U',0,'I',0,'D',0,'s',0,0,0,
+  0x50, 0x00,   // wPropertyDataLength
+      '{',0,'d',0,'e',0,'a',0,'d',0,'b',0,'e',0,'e',0,'f',0,'-',0,
+          '6',0,'9',0,'6',0,'9',0,'-',0,'4',0,'2',0,'4',0,'2',0,'-',0,
+	      'd',0,'0',0,'d',0,'0',0,'-',0,'d',0,'1',0,'e',0,'d',0,'d',0,
+	          '0',0,'c',0,'0',0,'f',0,'f',0,'e',0,'e',0,'}',0,0,0,0,0,
+#endif
 };
+#endif
 
 #define WEBUSB_REQUEST_GET_ALLOWED_ORIGINS (0x01)
 #define WEBUSB_REQUEST_GET_URL (0x02)
 
-uint8_t webusb_url[] = { 30, 3, 1, 'n', 'i', 'c', 'k', 'z', 'o', 'i', 'c', '.', 'g', 'i', 't', 'h', 'u', 'b', '.', 'i', 'o', '/', 'e', 's', 'p', 'p', 'l', 'u', 's', '/' };
+const uint8_t PROGMEM webusb_url[] = { 30, 3, 1, 'n', 'i', 'c', 'k', 'z', 'o', 'i', 'c', '.', 'g', 'i', 't', 'h', 'u', 'b', '.', 'i', 'o', '/', 'e', 's', 'p', 'p', 'l', 'u', 's', '/' };
 
 // Descriptors.c
 
@@ -209,7 +257,7 @@ const USB_Descriptor_Device_t PROGMEM DeviceDescriptor =
 {
     .Header                 = {.Size = sizeof(USB_Descriptor_Device_t), .Type = DTYPE_Device},
 
-    .USBSpecification       = VERSION_BCD(1,1,0),
+    .USBSpecification       = VERSION_BCD(2,1,0),
     .Class                  = USB_CSCP_IADDeviceClass,
     .SubClass               = USB_CSCP_IADDeviceSubclass,
     .Protocol               = USB_CSCP_IADDeviceProtocol,
@@ -239,7 +287,15 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
         .Header                 = {.Size = sizeof(USB_Descriptor_Configuration_Header_t), .Type = DTYPE_Configuration},
 
         .TotalConfigurationSize = sizeof(USB_Descriptor_Configuration_t),
-        .TotalInterfaces        = 3,
+        .TotalInterfaces        = 2
+#ifdef ESPPLUS_HID
+		+1
+#endif
+#ifdef ESPPLUS_VENDOR
+		+1
+#endif
+		,
+	
 
         .ConfigurationNumber    = 1,
         .ConfigurationStrIndex  = NO_DESCRIPTOR,
@@ -249,7 +305,87 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
         .MaxPowerConsumption    = USB_CONFIG_POWER_MA(500)
     },
 
-    /*.CDC_IAD =
+#ifdef ESPPLUS_VENDOR
+    .My_Interface = 
+    {
+	    .Header = { .Size = sizeof(USB_Descriptor_Interface_t), .Type = DTYPE_Interface },
+	    .InterfaceNumber = INTERFACE_ID_GenericHID,
+	    .AlternateSetting = 0x00,
+	    .TotalEndpoints = 2,
+	    .Class = 0xFF,
+	    .SubClass = 0,
+	    .Protocol = 0,
+            .InterfaceStrIndex = NO_DESCRIPTOR
+},
+	.My_In_Endpoint = {
+                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
+
+                        .EndpointAddress        = VENDOR_IN_EPADDR,
+                        .Attributes             = (EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+                        .EndpointSize           = GENERIC_EPSIZE,
+                        .PollingIntervalMS      = 0x05
+         },
+	 .My_Out_Endpoint = {
+		 
+                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
+
+                        .EndpointAddress        = VENDOR_OUT_EPADDR,
+                        .Attributes             = (EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+                        .EndpointSize           = GENERIC_EPSIZE,
+                        .PollingIntervalMS      = 0x05
+	 },
+#endif
+
+#ifdef ESPPLUS_HID
+           .HID_Interface =
+                {
+                        .Header                 = {.Size = sizeof(USB_Descriptor_Interface_t), .Type = DTYPE_Interface},
+
+                        .InterfaceNumber        = INTERFACE_ID_GenericHID,
+                        .AlternateSetting       = 0x00,
+
+                        .TotalEndpoints         = 2,
+
+                        .Class                  = HID_CSCP_HIDClass,
+                        .SubClass               = HID_CSCP_NonBootSubclass,
+                        .Protocol               = HID_CSCP_NonBootProtocol,
+
+                        .InterfaceStrIndex      = NO_DESCRIPTOR
+                },
+
+        .HID_GenericHID =
+                {
+                        .Header                 = {.Size = sizeof(USB_HID_Descriptor_HID_t), .Type = HID_DTYPE_HID},
+
+                        .HIDSpec                = VERSION_BCD(1,1,1),
+                        .CountryCode            = 0x00,
+                        .TotalReportDescriptors = 1,
+                        .HIDReportType          = HID_DTYPE_Report,
+                        .HIDReportLength        = sizeof(GenericReport)
+                },
+
+        .HID_ReportINEndpoint =
+                {
+                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
+
+                        .EndpointAddress        = GENERIC_IN_EPADDR,
+                        .Attributes             = (EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+                        .EndpointSize           = GENERIC_EPSIZE,
+                        .PollingIntervalMS      = 0x05
+                },
+
+        .HID_ReportOUTEndpoint =
+                {
+                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
+
+                        .EndpointAddress        = GENERIC_OUT_EPADDR,
+                        .Attributes             = (EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+                        .EndpointSize           = GENERIC_EPSIZE,
+                        .PollingIntervalMS      = 0x05
+                },
+#endif 
+
+    .CDC_IAD =
     {
         .Header                 = {.Size = sizeof(USB_Descriptor_Interface_Association_t), .Type = DTYPE_InterfaceAssociation},
 
@@ -258,11 +394,10 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
 
         .Class                  = CDC_CSCP_CDCClass,
         .SubClass               = CDC_CSCP_ACMSubclass,
-        .Protocol               = CDC_CSCP_ATCommandProtocol,
+        .Protocol               = CDC_CSCP_NoSpecificProtocol,
 
         .IADStrIndex            = NO_DESCRIPTOR
-    },*/
-
+    },
     .CDC_CCI_Interface =
     {
         .Header                 = {.Size = sizeof(USB_Descriptor_Interface_t), .Type = DTYPE_Interface},
@@ -274,7 +409,7 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
 
         .Class                  = CDC_CSCP_CDCClass,
         .SubClass               = CDC_CSCP_ACMSubclass,
-        .Protocol               = CDC_CSCP_ATCommandProtocol,
+        .Protocol               = CDC_CSCP_NoSpecificProtocol,
 
         .InterfaceStrIndex      = NO_DESCRIPTOR
     },
@@ -292,7 +427,7 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
         .Header                 = {.Size = sizeof(USB_CDC_Descriptor_FunctionalACM_t), .Type = DTYPE_CSInterface},
         .Subtype                = CDC_DSUBTYPE_CSInterface_ACM,
 
-        .Capabilities           = 0x06,
+        .Capabilities           = CDC_ACM_SUPPORT_LINE_REQUESTS | CDC_ACM_SUPPORT_SENDBREAK_REQUESTS,
     },
 
     .CDC_Functional_Union =
@@ -349,83 +484,17 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor =
         .EndpointSize           = CDC_TXRX_EPSIZE,
         .PollingIntervalMS      = 0x05
     },
-    .My_Interface = 
-    {
-	    .Header = { .Size = sizeof(USB_Descriptor_Interface_t), .Type = DTYPE_Interface },
-	    .InterfaceNumber = INTERFACE_ID_GenericHID,
-	    .AlternateSetting = 0x00,
-	    .TotalEndpoints = 2,
-	    .Class = 0xFF,
-	    .SubClass = 0,
-	    .Protocol = 0,
-            .InterfaceStrIndex = NO_DESCRIPTOR
-},
-	.My_In_Endpoint = {
-                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
 
-                        .EndpointAddress        = GENERIC_IN_EPADDR,
-                        .Attributes             = (EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-                        .EndpointSize           = GENERIC_EPSIZE,
-                        .PollingIntervalMS      = 0x05
-         },
-	 .My_Out_Endpoint = {
-		 
-                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
+};
 
-                        .EndpointAddress        = GENERIC_OUT_EPADDR,
-                        .Attributes             = (EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-                        .EndpointSize           = GENERIC_EPSIZE,
-                        .PollingIntervalMS      = 0x05
-	 }
-
-/*           .HID_Interface =
-                {
-                        .Header                 = {.Size = sizeof(USB_Descriptor_Interface_t), .Type = DTYPE_Interface},
-
-                        .InterfaceNumber        = INTERFACE_ID_GenericHID,
-                        .AlternateSetting       = 0x00,
-
-                        .TotalEndpoints         = 2,
-
-                        .Class                  = HID_CSCP_HIDClass,
-                        .SubClass               = HID_CSCP_NonBootSubclass,
-                        .Protocol               = HID_CSCP_NonBootProtocol,
-
-                        .InterfaceStrIndex      = NO_DESCRIPTOR
-                },
-
-        .HID_GenericHID =
-                {
-                        .Header                 = {.Size = sizeof(USB_HID_Descriptor_HID_t), .Type = HID_DTYPE_HID},
-
-                        .HIDSpec                = VERSION_BCD(1,1,1),
-                        .CountryCode            = 0x00,
-                        .TotalReportDescriptors = 1,
-                        .HIDReportType          = HID_DTYPE_Report,
-                        .HIDReportLength        = sizeof(GenericReport)
-                },
-
-        .HID_ReportINEndpoint =
-                {
-                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
-
-                        .EndpointAddress        = GENERIC_IN_EPADDR,
-                        .Attributes             = (EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-                        .EndpointSize           = GENERIC_EPSIZE,
-                        .PollingIntervalMS      = 0x05
-                },
-
-        .HID_ReportOUTEndpoint =
-                {
-                        .Header                 = {.Size = sizeof(USB_Descriptor_Endpoint_t), .Type = DTYPE_Endpoint},
-
-                        .EndpointAddress        = GENERIC_OUT_EPADDR,
-                        .Attributes             = (EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-                        .EndpointSize           = GENERIC_EPSIZE,
-                        .PollingIntervalMS      = 0x05
-                }
-*/
-
+const USB_Descriptor_DeviceQualifier_t PROGMEM DeviceQualifier = {
+	.Header = { .Size = sizeof(USB_Descriptor_DeviceQualifier_t), .Type = DTYPE_DeviceQualifier },
+	.USBSpecification = VERSION_BCD(2,1,0),
+	.Class = 0xFF,
+	.SubClass = 0,
+	.Protocol = 0,
+	.Endpoint0Size = 8,
+	.NumberOfConfigurations = 1,
 };
 
 /** Language descriptor structure. This descriptor, located in FLASH memory, is returned when the host requests
@@ -472,6 +541,10 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
             Address = &ConfigurationDescriptor;
             Size    = sizeof(USB_Descriptor_Configuration_t);
             break;
+        case DTYPE_DeviceQualifier:
+	    Address = &DeviceQualifier;
+	    Size = sizeof(USB_Descriptor_DeviceQualifier_t);
+            break;
         case DTYPE_String:
             switch (DescriptorNumber)
             {
@@ -484,37 +557,44 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
                     Size    = pgm_read_byte(&ManufacturerString.Header.Size);
                     break;
                 case STRING_ID_Product:
+		case 0xee:  // weird microsoft thing
                     Address = &ProductString;
                     Size    = pgm_read_byte(&ProductString.Header.Size);
                     break;
             }
             break;
+#ifdef ESPPLUS_HID
+	case HID_DTYPE_HID:
+	    Address = &ConfigurationDescriptor.HID_GenericHID;
+	    Size = sizeof(USB_HID_Descriptor_HID_t);
+	    break;
+        case HID_DTYPE_Report:
+	    Address = &GenericReport;
+	    Size = sizeof(GenericReport);
+	    break;
+#endif
 	case USB_BOS_DESCRIPTOR_TYPE:
 	    Address = &USB_BOS_DESCRIPTOR;
 	    Size = USB_BOS_DESCRIPTOR_LENGTH;
 	    break;
-	case WL_REQUEST_WEBUSB: 
-            switch (wIndex) {
-                case WEBUSB_REQUEST_GET_ALLOWED_ORIGINS:
-                case WEBUSB_REQUEST_GET_URL:
-                    Address = webusb_url;
-                    Size = sizeof(webusb_url);
-            }
-            break;
-        case WL_REQUEST_WINUSB:
-            switch (wIndex) {
-                case WINUSB_REQUEST_DESCRIPTOR:
-                    Address = MS_OS_20_DESCRIPTOR_SET;
-                    Size = MS_OS_20_DESCRIPTOR_LENGTH;
-            }
-	    break;
 
+    }
+
+
+    // XXX debugging
+    char buf[32];
+    int len = sprintf(buf, "# %04x %04x %d%c", wValue, wIndex, Size, Size < 4 ? '\n': ' ');
+    _usb_recv(0, (uint8_t *)buf, len);
+
+    if (Size >= 4) {
+	char *a = (char *)Address;
+	int len = sprintf(buf, "%02x %02x %02x %02x\n", pgm_read_byte(a), pgm_read_byte(a+1), pgm_read_byte(a+2), pgm_read_byte(a+3));
+        _usb_recv(0, (uint8_t *)buf, len);
     }
 
     *DescriptorAddress = Address;
     return Size;
 }
-
 
 // Application.c
 
@@ -537,8 +617,6 @@ static CDC_LineEncoding_t LineEncoding = { .BaudRateBPS = 0,
                                            .ParityType  = CDC_PARITY_None,
                                            .DataBits    = 8
                                          };
-
-usb_recv_t *_usb_recv = NULL;
 
 void usb_init(usb_recv_t *usb_recv) {
 
@@ -599,9 +677,17 @@ void EVENT_USB_Device_ConfigurationChanged(void)
     ConfigSuccess &= Endpoint_ConfigureEndpoint(CDC_RX_EPADDR, EP_TYPE_BULK, CDC_TXRX_EPSIZE, 1);
     ConfigSuccess &= Endpoint_ConfigureEndpoint(CDC_NOTIFICATION_EPADDR, EP_TYPE_INTERRUPT, CDC_NOTIFICATION_EPSIZE, 1);
 
+#ifdef ESPPLUS_VENDOR
+    /* Setup Vendor Report Endpoints */
+    ConfigSuccess &= Endpoint_ConfigureEndpoint(VENDOR_IN_EPADDR, EP_TYPE_INTERRUPT, GENERIC_EPSIZE, 1);
+    ConfigSuccess &= Endpoint_ConfigureEndpoint(VENDOR_OUT_EPADDR, EP_TYPE_INTERRUPT, GENERIC_EPSIZE, 1);
+#endif
+#ifdef ESPPLUS_HID
     /* Setup HID Report Endpoints */
     ConfigSuccess &= Endpoint_ConfigureEndpoint(GENERIC_IN_EPADDR, EP_TYPE_INTERRUPT, GENERIC_EPSIZE, 1);
     ConfigSuccess &= Endpoint_ConfigureEndpoint(GENERIC_OUT_EPADDR, EP_TYPE_INTERRUPT, GENERIC_EPSIZE, 1);
+#endif
+
 
     /* Reset line encoding baud rates so that the host knows to send new values */
     LineEncoding.BaudRateBPS = 0;
@@ -616,6 +702,14 @@ void EVENT_USB_Device_ConfigurationChanged(void)
  */
 void EVENT_USB_Device_ControlRequest(void)
 {
+    	    char buf[32];
+            int len = sprintf(buf, "! %02x %02x %04x %04x\n",
+			USB_ControlRequest.bmRequestType,
+		       USB_ControlRequest.bRequest,
+	               USB_ControlRequest.wValue,
+                      USB_ControlRequest.wIndex
+		);
+            _usb_recv(0, (uint8_t *)buf, len);
         switch (USB_ControlRequest.bRequest)
         {
         case CDC_REQ_GetLineEncoding:
@@ -679,6 +773,21 @@ void EVENT_USB_Device_ControlRequest(void)
             }
 
             break;
+	case WL_REQUEST_WEBUSB:
+	   // XXX switch on wIndex?
+	    Endpoint_ClearSETUP();
+	    Endpoint_Write_Control_PStream_LE(webusb_url, sizeof(webusb_url));
+	    Endpoint_ClearOUT();
+            break;
+#ifdef ESPPLUS_MSOS20
+        case WL_REQUEST_WINUSB:
+	    Endpoint_ClearSETUP();
+	    Endpoint_Write_Control_PStream_LE(MS_OS_20_DESCRIPTOR_SET, MS_OS_20_DESCRIPTOR_LENGTH);
+	    Endpoint_ClearOUT();
+	    break;
+#endif
+	default: {
+		 }
         }
 }
 
@@ -751,7 +860,7 @@ void usb_task(void)
 
                         /* Read Generic Report Data */
                         Endpoint_Read_Stream_LE(&GenericData, sizeof(GenericData), NULL);
-			int len = strnlen(GenericData, GENERIC_REPORT_SIZE);
+			int len = strnlen((const char *)GenericData, GENERIC_REPORT_SIZE);
                         /* Process Generic Report Data */
                         _usb_recv(USB_CHANNEL_HID, GenericData, len);
                 }

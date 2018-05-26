@@ -27,7 +27,7 @@ LD_FLAGS     =
 all: ${TARGET}.hex
 
 deploy: ${TARGET}.hex
-	avrdude -p ${MCU} -c usbasp -U $<
+	avrdude -p ${MCU} -c usbasp -V -U $<
     
 # Include LUFA-specific DMBS extension modules
 DMBS_LUFA_PATH ?= $(LUFA_PATH)/Build/LUFA
